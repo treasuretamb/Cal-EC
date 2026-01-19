@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Event } from '../types';
 import { format } from 'date-fns';
@@ -21,7 +20,9 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, isAdmin, onDele
 
   useEffect(() => {
     if (event) {
-      setIsScheduled(notificationService.hasReminder(event.id));
+      // FIX: Use getReminders() instead of hasReminder()
+      const reminders = notificationService.getReminders();
+      setIsScheduled(!!reminders[event.id]);
       setShowConfirmDelete(false);
     }
   }, [event]);
@@ -30,14 +31,16 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, isAdmin, onDele
 
   const handleNotifyMe = async () => {
     if (isScheduled) {
-      notificationService.removeReminder(event.id, currentUser?.id);
+      // FIX: Use removeReminder() with correct parameters
+      await notificationService.removeReminder(event.id, currentUser?.id);
       setIsScheduled(false);
       return;
     }
 
     const granted = await notificationService.requestPermission();
     if (granted) {
-      notificationService.saveReminder(event.id, event.date, currentUser?.id);
+      // FIX: Use addReminder() instead of saveReminder()
+      await notificationService.addReminder(event.id, event.date, currentUser?.id);
       setIsScheduled(true);
       
       notificationService.sendNotification(`Reminder Set: ${event.title}`, {
@@ -159,7 +162,7 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, isAdmin, onDele
 
             <button 
               onClick={onClose}
-              className="absolute bottom-6 right-6 p-1.5 z-20 text-[#517488] dark:text-[#C28840] transition-opacity hover:opacity-70 active:scale-90"
+              className="absolute bottom-6 right-6 p-1.5 z-20 text-[#517488] dark:text-[#C28840] transition-opacity hover:opacity-70 active:scale-90" aria-label="Close event details"
             >
               <Icon name="X" size={26} />
             </button>

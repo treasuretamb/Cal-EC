@@ -430,7 +430,7 @@ const App: React.FC = () => {
           ) : (
             <>
               <div className="w-28 h-28 md:w-44 md:h-44 flex-shrink-0 rounded-[12px] overflow-hidden shadow-md">
-                <img src={featuredEvent?.posterUrl || "https://picsum.photos/seed/cal/300/300"} className="w-full h-full object-cover" />
+                <img src={featuredEvent?.posterUrl || "https://picsum.photos/seed/cal/300/300"} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="flex-1">
                 <p className="text-[#2D3B4D] text-lg md:text-xl font-bold leading-tight">
@@ -487,12 +487,12 @@ const App: React.FC = () => {
 
       <footer className="mt-auto mb-8 flex flex-col items-center gap-6">
         <div className="flex items-center justify-center gap-12 w-full max-w-xl">
-          <button onClick={prevMonth} className="p-2 opacity-50 hover:opacity-100"><Icon name="ChevronLeft" size={28}/></button>
+          <button onClick={prevMonth} className="p-2 opacity-50 hover:opacity-100" aria-label="Previous month"><Icon name="ChevronLeft" size={28}/></button>
           <div className="text-center">
             <div className="text-2xl font-black tracking-tight">{format(currentDate, 'MMMM')}</div>
             <div className="text-[10px] font-bold text-[#C28840] uppercase tracking-[0.2em]">{format(currentDate, 'yyyy')}</div>
           </div>
-          <button onClick={nextMonth} className="p-2 opacity-50 hover:opacity-100"><Icon name="ChevronRight" size={28}/></button>
+          <button onClick={nextMonth} className="p-2 opacity-50 hover:opacity-100" aria-label="Next month"><Icon name="ChevronRight" size={28}/></button>
         </div>
         {user?.role === 'admin' && !isDbSetupNeeded && (
           <button onClick={() => { setSelectedDateForAdmin(selectedDay); setShowAdminForm(true); }} className="px-8 py-4 bg-[#C28840] text-white rounded-full shadow-2xl font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all flex items-center gap-2">
@@ -513,7 +513,7 @@ const App: React.FC = () => {
                   <p className="text-[10px] font-bold text-[#C28840] uppercase tracking-widest">{user?.role}</p>
                 </div>
               </div>
-              <button onClick={() => setShowMenu(false)} className="p-2 dark:text-white"><Icon name="X" size={28}/></button>
+              <button onClick={() => setShowMenu(false)} className="p-2 dark:text-white" aria-label="Show menu"><Icon name="X" size={28}/></button>
             </div>
             
             <div className="space-y-4">
