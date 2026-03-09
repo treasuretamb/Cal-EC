@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Icon from './Icon';
 import { authService } from '../services/authService';
@@ -7,24 +6,39 @@ import { AdminRecord } from '../types';
 interface WelcomeScreenProps {
   isDark: boolean;
   onToggleTheme: () => void;
-  onUserComplete: (name: string, lastName: string) => void;
+  onUserComplete: (data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    residence: string;
+    isByuPathway: boolean;
+  }) => void;
   onAdminComplete: (admin: AdminRecord) => void;
 }
 
-const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ 
-  isDark, 
-  onToggleTheme, 
+const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
+  isDark,
+  onToggleTheme,
   onUserComplete,
   onAdminComplete
 }) => {
   const [mode, setMode] = useState<'initial' | 'user' | 'admin-select' | 'admin-master' | 'admin-setup' | 'admin-login'>('initial');
-  const [userInfo, setUserInfo] = useState({ name: '', lastName: '' });
+  const [userInfo, setUserInfo] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    residence: '',
+    isByuPathway: false,
+  });
   const [adminSetup, setAdminSetup] = useState({ name: '', lastName: '', password: '' });
   const [adminPass, setAdminPass] = useState('');
   const [selectedAdminId, setSelectedAdminId] = useState('');
   const [error, setError] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [availableAdmins, setAvailableAdmins] = useState<AdminRecord[]>([]);
+  const [showPasswords, setShowPasswords] = useState(false);
 
   const loadAdmins = async () => {
     const admins = await authService.getAllAdmins();
@@ -33,14 +47,40 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   useEffect(() => {
     loadAdmins();
+    const saved = authService.getSavedUserProfile();
+    if (saved) {
+      const [firstName, ...rest] = (saved.name || '').split(' ');
+      setUserInfo({
+        firstName: firstName || '',
+        lastName: rest.join(' ') || '',
+        email: saved.email !== 'user@local' ? saved.email || '' : '',
+        phone: saved.phone || '',
+        residence: saved.residence || '',
+        isByuPathway: saved.isByuPathway || false,
+      });
+    }
   }, []);
 
-  const handleUserSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (userInfo.name && userInfo.lastName) {
-      onUserComplete(userInfo.name, userInfo.lastName);
-    }
-  };
+  const handleUserSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!userInfo.firstName || !userInfo.lastName || !userInfo.email) return;
+
+  // Check if this email is already registered — restore their profile
+  const existing = await authService.getUserByEmail(userInfo.email);
+  if (existing) {
+    // Merge any updated info they may have changed
+    onUserComplete({
+      firstName: existing.name.split(' ')[0],
+      lastName: existing.name.split(' ').slice(1).join(' '),
+      email: existing.email,
+      phone: userInfo.phone || existing.phone || '',
+      residence: userInfo.residence || existing.residence || '',
+      isByuPathway: userInfo.isByuPathway ?? existing.isByuPathway ?? false,
+    });
+  } else {
+    onUserComplete(userInfo);
+  }
+};
 
   const handleMasterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,14 +132,14 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   return (
     <div className={`min-h-screen w-full flex flex-col items-center justify-center p-6 transition-colors duration-500 relative overflow-hidden ${isDark ? 'bg-[#2D3B4D]' : 'bg-[#F5F1EB]'}`}>
-      
+
       <button onClick={onToggleTheme} className={`absolute top-12 right-12 transition-colors ${isDark ? 'text-[#C28840]' : 'text-[#517488]'}`}>
         <Icon name={isDark ? "Sun" : "Moon"} size={24} />
       </button>
 
-      <div className="mb-12 relative text-center max-w-md">
-        <div className={`w-28 h-28 mx-auto mb-8 rounded-[2rem] shadow-2xl flex items-center justify-center bg-white transform hover:rotate-6 transition-transform cursor-default`}>
-          <span className={`text-5xl font-black tracking-tighter text-[#517488]`}>Cal</span>
+      <div className="mb-8 relative text-center max-w-md">
+        <div className="w-28 h-28 mx-auto mb-8 rounded-[2rem] shadow-2xl flex items-center justify-center bg-white transform hover:rotate-6 transition-transform cursor-default">
+          <span className="text-5xl font-black tracking-tighter text-[#517488]">Cal</span>
         </div>
         <h1 className={`text-4xl md:text-5xl font-black tracking-tighter mb-4 ${isDark ? 'text-white' : 'text-[#2D3B4D]'}`}>
           Welcome to Cal
@@ -110,11 +150,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       </div>
 
       <div className="w-full max-w-sm space-y-4 text-center">
+
         {mode === 'initial' && (
           <div className="flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <button 
+            <button
               onClick={() => setMode('user')}
-              className={`px-8 py-2.5 bg-[#C28840] text-white font-bold text-lg rounded-2xl transition-all active:scale-95 shadow-lg hover:shadow-[#C28840]/30 hover:bg-[#D39951]`}
+              className="px-8 py-2.5 bg-[#C28840] text-white font-bold text-lg rounded-2xl transition-all active:scale-95 shadow-lg hover:shadow-[#C28840]/30 hover:bg-[#D39951]"
             >
               Continue to App
             </button>
@@ -123,27 +164,104 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         )}
 
         {mode === 'user' && (
-          <form onSubmit={handleUserSubmit} className={adminCardClass}>
-            <h3 className={`text-xl font-black ${isDark ? 'text-white' : 'text-[#2D3B4D]'}`}>User Access</h3>
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <label className={labelClass}>First Name</label>
-                <input autoFocus required type="text" className={inputClass} value={userInfo.name} onChange={e => setUserInfo({ ...userInfo, name: e.target.value })} />
-              </div>
-              <div className="space-y-1">
-                <label className={labelClass}>Last Name</label>
-                <input required type="text" className={inputClass} value={userInfo.lastName} onChange={e => setUserInfo({ ...userInfo, lastName: e.target.value })} />
-              </div>
+          <form onSubmit={handleUserSubmit} className={`${adminCardClass} max-h-[85vh] overflow-y-auto no-scrollbar`}>
+            <div>
+              <h3 className={`text-xl font-black ${isDark ? 'text-white' : 'text-[#2D3B4D]'}`}>Your Details</h3>
+              <p className={`text-xs mt-1 opacity-50 font-medium ${isDark ? 'text-white' : 'text-slate-500'}`}>
+                Used to personalise your experience and pre-fill event RSVPs.
+              </p>
             </div>
-            <button type="submit" className={`px-8 py-2.5 ${adminPrimaryBtnColor} text-white font-bold text-lg rounded-2xl transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2 mx-auto`}>Let's Go</button>
-            <button type="button" onClick={() => setMode('initial')} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest hover:underline text-center">Back</button>
+
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className={labelClass}>First Name</label>
+                  <input
+                    autoFocus required type="text"
+                    className={inputClass}
+                    value={userInfo.firstName}
+                    onChange={e => setUserInfo({ ...userInfo, firstName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className={labelClass}>Last Name</label>
+                  <input
+                    required type="text"
+                    className={inputClass}
+                    value={userInfo.lastName}
+                    onChange={e => setUserInfo({ ...userInfo, lastName: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className={labelClass}>Email Address</label>
+                <input
+                  required type="email"
+                  className={inputClass}
+                  placeholder="you@example.com"
+                  value={userInfo.email}
+                  onChange={e => setUserInfo({ ...userInfo, email: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className={labelClass}>Phone Number</label>
+                <input
+                  type="tel"
+                  className={inputClass}
+                  placeholder="+27 000 000 0000"
+                  value={userInfo.phone}
+                  onChange={e => setUserInfo({ ...userInfo, phone: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className={labelClass}>Area of Residence</label>
+                <input
+                  type="text"
+                  className={inputClass}
+                  placeholder="e.g. Johannesburg, Gauteng"
+                  value={userInfo.residence}
+                  onChange={e => setUserInfo({ ...userInfo, residence: e.target.value })}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setUserInfo({ ...userInfo, isByuPathway: !userInfo.isByuPathway })}
+                className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${
+                  userInfo.isByuPathway
+                    ? 'border-[#C28840] bg-[#C28840]/10'
+                    : isDark ? 'border-white/10 bg-white/5' : 'border-slate-100 bg-slate-50'
+                }`}
+              >
+                <div className="text-left">
+                  <p className={`text-sm font-black ${isDark ? 'text-white' : 'text-[#2D3B4D]'}`}>BYU Pathway Student</p>
+                  <p className="text-[10px] opacity-50 uppercase tracking-widest font-bold mt-0.5">Currently enrolled?</p>
+                </div>
+                <div className={`w-10 h-6 rounded-full transition-all flex items-center px-1 ${userInfo.isByuPathway ? 'bg-[#C28840]' : isDark ? 'bg-white/20' : 'bg-slate-200'}`}>
+                  <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-all duration-200 ${userInfo.isByuPathway ? 'translate-x-4' : 'translate-x-0'}`} />
+                </div>
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              className={`${adminPrimaryBtnColor} text-white font-bold text-lg rounded-2xl transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2 w-full py-3`}
+            >
+              Let's Go <Icon name="ArrowRight" size={18} />
+            </button>
+            <button type="button" onClick={() => setMode('initial')} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest hover:underline text-center">
+              Back
+            </button>
           </form>
         )}
 
         {(mode === 'admin-select' || mode === 'admin-master') && (
           <div className={adminCardClass}>
             <h3 className={`text-xl font-black ${isDark ? 'text-white' : 'text-[#2D3B4D]'}`}>Admin Portal</h3>
-            
+
             {availableAdmins.length > 0 && mode === 'admin-select' ? (
               <div className="space-y-4">
                 <p className="text-xs font-bold opacity-50 uppercase tracking-widest">Select Account</p>
@@ -164,11 +282,22 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <form onSubmit={handleMasterSubmit} className="space-y-4">
                 <div className="space-y-1">
                   <label className={labelClass}>Master Password</label>
-                  <input autoFocus required type="password" className={inputClass} value={adminPass} onChange={e => { setAdminPass(e.target.value); setError(''); }} />
+                  <div className="relative">
+                    <input
+                      autoFocus required
+                      type={showPasswords ? 'text' : 'password'}
+                      className={inputClass}
+                      value={adminPass}
+                      onChange={e => { setAdminPass(e.target.value); setError(''); }}
+                    />
+                    <button type="button" onClick={() => setShowPasswords(!showPasswords)} className="absolute right-0 bottom-2.5 opacity-40 hover:opacity-100 transition-opacity">
+                      <Icon name={showPasswords ? 'EyeOff' : 'Eye'} size={16} />
+                    </button>
+                  </div>
                   {error && <p className="text-red-500 text-[10px] font-bold mt-1 uppercase">{error}</p>}
                 </div>
                 <button type="submit" disabled={isVerifying} className={`${actionBtnClass} ${adminPrimaryBtnColor}`}>
-                  {isVerifying && <Icon name="Loader2" className="animate-spin" size={14}/>}
+                  {isVerifying && <Icon name="Loader2" className="animate-spin" size={14} />}
                   Authenticate
                 </button>
                 {availableAdmins.length > 0 && (
@@ -186,20 +315,31 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             <div className="space-y-4">
               <div className="space-y-1">
                 <label className={labelClass}>First Name</label>
-                <input required type="text" className={inputClass} value={adminSetup.name} onChange={e => setAdminSetup({...adminSetup, name: e.target.value})} />
+                <input required type="text" className={inputClass} value={adminSetup.name} onChange={e => setAdminSetup({ ...adminSetup, name: e.target.value })} />
               </div>
               <div className="space-y-1">
                 <label className={labelClass}>Last Name</label>
-                <input required type="text" className={inputClass} value={adminSetup.lastName} onChange={e => setAdminSetup({...adminSetup, lastName: e.target.value})} />
+                <input required type="text" className={inputClass} value={adminSetup.lastName} onChange={e => setAdminSetup({ ...adminSetup, lastName: e.target.value })} />
               </div>
               <div className="space-y-1">
                 <label className={labelClass}>Personal Password</label>
-                <input required type="password" className={inputClass} value={adminSetup.password} onChange={e => setAdminSetup({...adminSetup, password: e.target.value})} />
+                <div className="relative">
+                  <input
+                    required
+                    type={showPasswords ? 'text' : 'password'}
+                    className={inputClass}
+                    value={adminSetup.password}
+                    onChange={e => setAdminSetup({ ...adminSetup, password: e.target.value })}
+                  />
+                  <button type="button" onClick={() => setShowPasswords(!showPasswords)} className="absolute right-0 bottom-2.5 opacity-40 hover:opacity-100 transition-opacity">
+                    <Icon name={showPasswords ? 'EyeOff' : 'Eye'} size={16} />
+                  </button>
+                </div>
               </div>
             </div>
             {error && <p className="text-red-500 text-[10px] font-bold uppercase">{error}</p>}
             <button type="submit" disabled={isVerifying} className={`${actionBtnClass} ${adminPrimaryBtnColor} w-full`}>
-              {isVerifying && <Icon name="Loader2" className="animate-spin" size={14}/>}
+              {isVerifying && <Icon name="Loader2" className="animate-spin" size={14} />}
               Finish Setup
             </button>
           </form>
@@ -207,25 +347,36 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
         {mode === 'admin-login' && (
           <form onSubmit={handlePersonalLogin} className={adminCardClass}>
-             <h3 className={`text-xl font-black ${isDark ? 'text-white' : 'text-[#2D3B4D]'}`}>Welcome Back</h3>
-             <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">{availableAdmins.find(a => a.id === selectedAdminId)?.name}</p>
-             <div className="space-y-1">
-                <label className={labelClass}>Personal Password</label>
-                <input autoFocus required type="password" className={inputClass} value={adminPass} onChange={e => { setAdminPass(e.target.value); setError(''); }} />
-                {error && <p className="text-red-500 text-[10px] font-bold mt-1 uppercase">{error}</p>}
-             </div>
-             <button type="submit" disabled={isVerifying} className={`${actionBtnClass} ${adminPrimaryBtnColor} w-full`}>
-               {isVerifying && <Icon name="Loader2" className="animate-spin" size={16}/>}
-               Login
-             </button>
-             <button type="button" onClick={() => setMode('admin-select')} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest hover:underline text-center">Back</button>
+            <h3 className={`text-xl font-black ${isDark ? 'text-white' : 'text-[#2D3B4D]'}`}>Welcome Back</h3>
+            <p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">{availableAdmins.find(a => a.id === selectedAdminId)?.name}</p>
+            <div className="space-y-1">
+              <label className={labelClass}>Personal Password</label>
+              <div className="relative">
+                <input
+                  autoFocus required
+                  type={showPasswords ? 'text' : 'password'}
+                  className={inputClass}
+                  value={adminPass}
+                  onChange={e => { setAdminPass(e.target.value); setError(''); }}
+                />
+                <button type="button" onClick={() => setShowPasswords(!showPasswords)} className="absolute right-0 bottom-2.5 opacity-40 hover:opacity-100 transition-opacity">
+                  <Icon name={showPasswords ? 'EyeOff' : 'Eye'} size={16} />
+                </button>
+              </div>
+              {error && <p className="text-red-500 text-[10px] font-bold mt-1 uppercase">{error}</p>}
+            </div>
+            <button type="submit" disabled={isVerifying} className={`${actionBtnClass} ${adminPrimaryBtnColor} w-full`}>
+              {isVerifying && <Icon name="Loader2" className="animate-spin" size={16} />}
+              Login
+            </button>
+            <button type="button" onClick={() => setMode('admin-select')} className="w-full text-xs font-bold text-slate-400 uppercase tracking-widest hover:underline text-center">Back</button>
           </form>
         )}
       </div>
 
       {mode === 'initial' && (
-        <button 
-          onClick={() => { loadAdmins().then(() => setMode(availableAdmins.length > 0 ? 'admin-select' : 'admin-master')) }}
+        <button
+          onClick={() => { loadAdmins().then(() => setMode(availableAdmins.length > 0 ? 'admin-select' : 'admin-master')); }}
           className={`absolute bottom-10 right-10 p-4 flex items-center gap-2 font-bold text-xs uppercase tracking-widest transition-all hover:opacity-100 active:scale-95 ${isDark ? 'text-white/40 hover:text-white' : 'text-[#517488]/40 hover:text-[#517488]'}`}
         >
           <Icon name="ShieldCheck" size={16} />

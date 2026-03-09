@@ -20,7 +20,6 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, isAdmin, onDele
 
   useEffect(() => {
     if (event) {
-      // FIX: Use getReminders() instead of hasReminder()
       const reminders = notificationService.getReminders();
       setIsScheduled(!!reminders[event.id]);
       setShowConfirmDelete(false);
@@ -31,7 +30,6 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, isAdmin, onDele
 
   const handleNotifyMe = async () => {
     if (isScheduled) {
-      // FIX: Use removeReminder() with correct parameters
       await notificationService.removeReminder(event.id, currentUser?.id);
       setIsScheduled(false);
       return;
@@ -39,7 +37,6 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, isAdmin, onDele
 
     const granted = await notificationService.requestPermission();
     if (granted) {
-      // FIX: Use addReminder() instead of saveReminder()
       await notificationService.addReminder(event.id, event.date, currentUser?.id);
       setIsScheduled(true);
       
@@ -77,6 +74,7 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, isAdmin, onDele
         className="relative w-full max-w-md bg-white dark:bg-[#1E293B] rounded-[12px] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300 flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Scrollable content area */}
         <div className="overflow-y-auto flex-1 no-scrollbar">
           <div className="w-full aspect-[4/5] bg-slate-100 overflow-hidden relative">
             <img 
@@ -84,29 +82,19 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, isAdmin, onDele
               alt={event.title}
               className="w-full h-full object-cover"
             />
-            {isAdmin && (
-              <div className="absolute top-4 left-4 flex gap-2">
-                <button 
-                  onClick={() => onEdit?.(event)}
-                  className="p-3 bg-white/90 dark:bg-slate-800/90 rounded-full shadow-lg text-[#517488] dark:text-[#C28840] hover:scale-110 active:scale-90 transition-all"
-                  title="Edit Event"
-                >
-                  <Icon name="Pencil" size={18} />
-                </button>
-                <button 
-                  onClick={() => setShowConfirmDelete(true)}
-                  className="p-3 bg-red-500/90 rounded-full shadow-lg text-white hover:scale-110 active:scale-90 transition-all"
-                  title="Delete Event"
-                >
-                  <Icon name="Trash2" size={18} />
-                </button>
-              </div>
-            )}
           </div>
 
           <div className="bg-[#E8F1F8] dark:bg-slate-800 p-8 pb-12 min-h-[250px] relative">
             <div className="flex justify-between items-start mb-4">
               <h3 className="text-[#1E293B] dark:text-white text-xl font-black">{event.title}</h3>
+              {event.isRecurring && (
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-[#517488]/10 rounded-full w-fit mt-2">
+                <Icon name="Repeat" size={12} className="text-[#517488] dark:text-[#C28840]" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-[#517488] dark:text-[#C28840]">
+                  Recurring · {event.recurrencePattern}
+                </span>
+              </div>
+              )}
               <button 
                 onClick={handleNotifyMe}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all text-xs font-bold uppercase tracking-wider ${
@@ -162,13 +150,33 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, isAdmin, onDele
 
             <button 
               onClick={onClose}
-              className="absolute bottom-6 right-6 p-1.5 z-20 text-[#517488] dark:text-[#C28840] transition-opacity hover:opacity-70 active:scale-90" aria-label="Close event details"
+              className="absolute bottom-6 right-6 p-1.5 z-20 text-[#517488] dark:text-[#C28840] transition-opacity hover:opacity-70 active:scale-90"
+              aria-label="Close event details"
             >
               <Icon name="X" size={26} />
             </button>
           </div>
         </div>
 
+        {/* Pinned admin bar — always visible at the bottom */}
+        {isAdmin && (
+          <div className="flex gap-3 p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-[#1E293B]">
+            <button
+              onClick={() => onEdit?.(event)}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#517488]/10 text-[#517488] dark:text-[#C28840] font-bold text-sm hover:bg-[#517488]/20 transition-all active:scale-95"
+            >
+              <Icon name="Pencil" size={16} /> Edit Event
+            </button>
+            <button
+              onClick={() => setShowConfirmDelete(true)}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500/10 text-red-500 font-bold text-sm hover:bg-red-500/20 transition-all active:scale-95"
+            >
+              <Icon name="Trash2" size={16} /> Delete
+            </button>
+          </div>
+        )}
+
+        {/* Delete confirmation overlay */}
         {showConfirmDelete && (
           <div className="absolute inset-0 z-50 flex items-center justify-center p-8 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
             <div className="text-center space-y-6">

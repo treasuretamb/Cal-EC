@@ -94,6 +94,7 @@ const App: React.FC = () => {
 
   const [showAuditDashboard, setShowAuditDashboard] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [userStats, setUserStats] = useState<UserStats | null>(null); 
   const [globalUserCount, setGlobalUserCount] = useState<number>(0);
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -108,6 +109,20 @@ const App: React.FC = () => {
 
   const checkIntervalRef = useRef<number | null>(null);
 
+  // Verify session against server on load
+  useEffect(() => {
+    const localUser = authService.getCurrentSession();
+    if (!localUser) return;
+    authService.verifySession(localUser).then(verified => {
+      if (!verified) {
+        setUser(null);
+        setViewState('welcome');
+      } else {
+        setUser(verified);
+      }
+    });
+  }, []);
+
   useEffect(() => {
     if (user) {
       authService.createSession(user);
@@ -118,7 +133,17 @@ const App: React.FC = () => {
     }
   }, [user]);
 
-  const today = useMemo(() => new Date(), []);
+  const [today, setToday] = useState(() => new Date());
+
+  useEffect(() => {
+  const midnight = new Date();
+  midnight.setHours(24, 0, 0, 0);
+  const msUntilMidnight = midnight.getTime() - Date.now();
+  const timeout = setTimeout(() => {
+    setToday(new Date());
+  }, msUntilMidnight);
+  return () => clearTimeout(timeout);
+  }, [today]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date>(new Date());
   const [events, setEvents] = useState<Event[]>([]);
@@ -138,17 +163,26 @@ const App: React.FC = () => {
         }
       } else if (data) {
         const mappedEvents: Event[] = data.map(e => ({
-          id: e.id.toString(),
-          title: e.title || 'Untitled Event',
-          description: e.description || '',
-          date: e.date,
-          startTime: e.start_time,
-          endTime: e.end_time,
-          posterUrl: e.poster_url || `https://picsum.photos/seed/${e.id}/600/800`,
-          rsvpLink: e.rsvp_link,
-          location: e.location,
-          category: e.category as any || 'Other',
-          color: e.color || '#C28840'
+        id: e.id.toString(),
+        title: e.title || 'Untitled Event',
+        description: e.description || '',
+        date: e.date,
+        startTime: e.start_time,
+        endTime: e.end_time,
+        posterUrl: e.poster_url || `https://picsum.photos/seed/${e.id}/600/800`,
+        rsvpLink: e.rsvp_link,
+        location: e.location,
+        category: e.category as any || 'Other',
+        color: e.color || '#C28840',
+        visibility: (e.visibility as 'public' | 'admin_only') || 'public',
+        isRecurring: e.is_recurring || false,
+        recurrencePattern: e.recurrence_pattern || undefined,
+        recurrenceEnd: e.recurrence_end || undefined,
+        recurrenceGroupId: e.recurrence_group_id || undefined,
+        recurrenceInterval: e.recurrence_interval || 1,
+        recurrenceDaysOfWeek: e.recurrence_days_of_week || undefined,
+        recurrenceCount: e.recurrence_count || undefined,
+        recurrenceCustomDates: e.recurrence_custom_dates || undefined,
         }));
         setEvents(mappedEvents);
       }
@@ -210,22 +244,25 @@ const App: React.FC = () => {
     return () => { if (checkIntervalRef.current) clearInterval(checkIntervalRef.current); };
   }, [events, user]);
 
-  const handleUserSuccess = (name: string, lastName: string) => {
-    const deviceId = authService.getOrCreateDeviceId();
-    const formatName = (str: string) => str.trim().split(' ').map(s => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()).join(' ');
-    const capitalizedName = formatName(name);
-    const capitalizedLastName = formatName(lastName);
-    const newUser: User = {
-      id: `user-${deviceId}`,
-      role: 'user',
-      name: `${capitalizedName} ${capitalizedLastName}`,
-      username: capitalizedName.toLowerCase(),
-      email: 'user@local'
-    };
-    authService.createSession(newUser);
-    setUser(newUser);
-    setViewState('main');
+  const handleUserSuccess = (data: {
+  firstName: string; lastName: string; email: string;
+  phone: string; residence: string; isByuPathway: boolean;
+}) => {
+  const fmt = (s: string) => s.trim().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  const newUser: User = {
+    id: `user-${data.email.toLowerCase()}`,  // email is now the unique key
+    role: 'user',
+    name: `${fmt(data.firstName)} ${fmt(data.lastName)}`,
+    username: data.firstName.toLowerCase(),
+    email: data.email,
+    phone: data.phone,
+    residence: data.residence,
+    isByuPathway: data.isByuPathway,
   };
+  authService.createSession(newUser);
+  setUser(newUser);
+  setViewState('main');
+};
 
   const handleAdminSuccess = (admin: User) => {
     authService.createSession(admin);
@@ -253,11 +290,12 @@ const App: React.FC = () => {
   }, [currentDate]);
 
   const eventsInView = useMemo(() => {
-    return events
-      .filter(e => isSameMonth(new Date(e.date), currentDate))
-      .filter(e => !selectedCategory || e.category === selectedCategory)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [events, currentDate, selectedCategory]);
+  return events
+    .filter(e => isSameMonth(new Date(e.date), currentDate))
+    .filter(e => !selectedCategory || e.category === selectedCategory)
+    .filter(e => user?.role === 'admin' || e.visibility !== 'admin_only')
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+}, [events, currentDate, selectedCategory, user]);
 
   useEffect(() => { setFeaturedIndex(0); }, [currentDate, selectedCategory]);
 
@@ -274,58 +312,78 @@ const App: React.FC = () => {
     return eventsInView[featuredIndex] || eventsInView[0];
   }, [eventsInView, featuredIndex]);
 
-  const handleAddEvent = async (event: Event) => {
-    const posterUrl = event.posterUrl || `https://picsum.photos/seed/${event.id}/600/800`;
-    const dbEvent = {
-      title: event.title,
-      description: event.description,
-      date: event.date,
-      start_time: event.startTime,
-      end_time: event.endTime,
-      poster_url: posterUrl,
-      rsvp_link: event.rsvpLink,
-      location: event.location,
-      category: event.category,
-      color: event.color
-    };
-    const { error } = await supabase.from('events').insert(dbEvent);
-    if (!error) {
-      await fetchEvents();
-      if (user && user.role === 'admin') authService.logAction(user, 'Event Added', `Admin added "${event.title}"`);
-    }
-  };
+  const handleAddEvent = async (eventsToAdd: Event[]) => {
+  if (eventsToAdd.length === 1) {
+    // Single event — use existing RPC
+    const e = eventsToAdd[0];
+    const posterUrl = e.posterUrl || `https://picsum.photos/seed/${e.id}/600/800`;
+    await supabase.rpc('insert_event', {
+      p_title: e.title, p_description: e.description, p_date: e.date,
+      p_start_time: e.startTime ?? null, p_end_time: e.endTime ?? null,
+      p_poster_url: posterUrl, p_rsvp_link: e.rsvpLink ?? null,
+      p_location: e.location ?? null, p_category: e.category, p_color: e.color
+    });
+  } else {
+    // Recurring — batch insert
+    const payload = eventsToAdd.map(e => ({
+      title: e.title, description: e.description, date: e.date,
+      start_time: e.startTime ?? null, end_time: e.endTime ?? null,
+      poster_url: e.posterUrl || `https://picsum.photos/seed/${e.id}/600/800`,
+      rsvp_link: e.rsvpLink ?? null, location: e.location ?? null,
+      category: e.category, color: e.color,
+      visibility: event.visibility || 'public',
+      is_recurring: true,
+      recurrence_pattern: e.recurrencePattern ?? null,
+      recurrence_end: e.recurrenceEnd ?? null,
+      recurrence_group_id: e.recurrenceGroupId ?? null,
+      recurrence_interval: e.recurrenceInterval ?? 1,
+      recurrence_days_of_week: e.recurrenceDaysOfWeek ?? null,
+      recurrence_count: e.recurrenceCount ?? null,
+      recurrence_custom_dates: e.recurrenceCustomDates ?? null,
+    }));
+    await supabase.rpc('batch_insert_events', { p_events: payload });
+  }
+  await fetchEvents();
+  if (user?.role === 'admin') {
+    const label = eventsToAdd.length > 1
+      ? `Admin created ${eventsToAdd.length} recurring instances of "${eventsToAdd[0].title}"`
+      : `Admin added "${eventsToAdd[0].title}"`;
+    authService.logAction(user, 'Event Added', label);
+  }
+};
 
   const handleUpdateEvent = async (updatedEvent: Event) => {
-    const dbEvent = {
-      title: updatedEvent.title,
-      description: updatedEvent.description,
-      date: updatedEvent.date,
-      start_time: updatedEvent.startTime,
-      end_time: updatedEvent.endTime,
-      poster_url: updatedEvent.posterUrl,
-      rsvp_link: updatedEvent.rsvpLink,
-      location: updatedEvent.location,
-      category: updatedEvent.category,
-      color: updatedEvent.color
-    };
-    const { error } = await supabase.from('events').update(dbEvent).eq('id', updatedEvent.id);
-    if (!error) {
-      await fetchEvents();
-      if (user && user.role === 'admin') authService.logAction(user, 'Event Updated', `Admin updated "${updatedEvent.title}"`);
-      setEventToEdit(null);
-      setSelectedEvent(null);
-    }
+  const { error } = await supabase.rpc('update_event', {
+    p_id: parseInt(updatedEvent.id),
+    p_title: updatedEvent.title,
+    p_description: updatedEvent.description,
+    p_date: updatedEvent.date,
+    p_start_time: updatedEvent.startTime ?? null,
+    p_end_time: updatedEvent.endTime ?? null,
+    p_poster_url: updatedEvent.posterUrl,
+    p_rsvp_link: updatedEvent.rsvpLink ?? null,
+    p_location: updatedEvent.location ?? null,
+    p_category: updatedEvent.category,
+    p_color: updatedEvent.color,
+    visibility: event.visibility || 'public'
+  });
+  if (!error) {
+    await fetchEvents();
+    if (user && user.role === 'admin') authService.logAction(user, 'Event Updated', `Admin updated "${updatedEvent.title}"`);
+    setEventToEdit(null);
+    setSelectedEvent(null);
+  }
   };
 
   const handleDeleteEvent = async (eventId: string) => {
-    const eventToDelete = events.find(e => e.id === eventId);
-    const { error } = await supabase.from('events').delete().eq('id', eventId);
-    if (!error) {
-      await fetchEvents();
-      if (user && user.role === 'admin' && eventToDelete) authService.logAction(user, 'Event Deleted', `Admin deleted "${eventToDelete.title}"`);
-      notificationService.removeReminder(eventId, user?.id);
-      setSelectedEvent(null);
-    }
+  const eventToDelete = events.find(e => e.id === eventId);
+  const { error } = await supabase.rpc('delete_event', { p_id: parseInt(eventId) });
+  if (!error) {
+    await fetchEvents();
+    if (user && user.role === 'admin' && eventToDelete) authService.logAction(user, 'Event Deleted', `Admin deleted "${eventToDelete.title}"`);
+    notificationService.removeReminder(eventId, user?.id);
+    setSelectedEvent(null);
+  }
   };
 
   const toggleTheme = () => setDarkMode(!darkMode);
@@ -348,12 +406,12 @@ const App: React.FC = () => {
   };
 
   const openAuditDashboard = async () => {
-    const logs = await authService.getAuditLogs();
-    setAuditLogs(logs);
-    const count = await authService.getGlobalUserCount();
-    setGlobalUserCount(count);
-    setShowAuditDashboard(true);
-  };
+  const logs = await authService.getAuditLogs();
+  setAuditLogs(logs);
+  const stats = await authService.getUserStats();
+  setUserStats(stats);
+  setShowAuditDashboard(true);
+};
 
   const copySql = () => {
     navigator.clipboard.writeText(SQL_SCHEMA);
@@ -471,7 +529,11 @@ const App: React.FC = () => {
           {days.map((day, idx) => {
             const isCurrentMonth = isSameMonth(day, currentDate);
             const isSelected = isSameDay(day, selectedDay);
-            const dayEvents = events.filter(e => isSameDay(new Date(e.date), day) && (!selectedCategory || e.category === selectedCategory));
+            const dayEvents = events.filter(e =>
+              isSameDay(new Date(e.date), day) &&
+              (!selectedCategory || e.category === selectedCategory) &&
+              (user?.role === 'admin' || e.visibility !== 'admin_only')
+            );
             return (
               <div key={idx} className="flex flex-col items-center justify-center relative h-10 w-full">
                 {isSameDay(day, today) && <div className="absolute inset-0 m-auto w-8 h-8 bg-[#517488]/10 rounded-lg"></div>}
@@ -543,7 +605,12 @@ const App: React.FC = () => {
       )}
 
       <EventModal event={selectedEvent} onClose={() => setSelectedEvent(null)} isAdmin={user?.role === 'admin'} onDelete={handleDeleteEvent} onEdit={(e) => { setEventToEdit(e); setShowAdminForm(true); }} />
-      <AuditModal isOpen={showAuditDashboard} onClose={() => setShowAuditDashboard(false)} logs={auditLogs} />
+      <AuditModal
+      isOpen={showAuditDashboard}
+      onClose={() => setShowAuditDashboard(false)}
+      logs={auditLogs}
+      stats={userStats}
+      />
       {showAdminForm && <AdminForm onAdd={handleAddEvent} onUpdate={handleUpdateEvent} onClose={() => { setShowAdminForm(false); setSelectedDateForAdmin(undefined); setEventToEdit(null); }} initialDate={selectedDateForAdmin} eventToEdit={eventToEdit} />}
     </div>
   );

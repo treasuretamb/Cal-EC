@@ -1,24 +1,36 @@
-
 export interface Event {
   id: string;
   title: string;
   description: string;
-  date: string; // ISO string for the day
-  startTime?: string; // HH:mm format
-  endTime?: string;   // HH:mm format
+  date: string;
+  startTime?: string;
+  endTime?: string;
   posterUrl: string;
   rsvpLink?: string;
   location?: string;
   category: 'Intellectual' | 'Physical' | 'Service' | 'Social' | 'Spiritual' | 'Other';
   color: string;
+  visibility?: 'public' | 'admin_only';
+  // Recurrence
+  isRecurring?: boolean;
+  recurrencePattern?: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+  recurrenceInterval?: number;
+  recurrenceDaysOfWeek?: number[];
+  recurrenceEnd?: string;
+  recurrenceCount?: number;
+  recurrenceCustomDates?: string[];
+  recurrenceGroupId?: string;
 }
 
 export interface User {
   id: string;
   role: 'admin' | 'user';
-  name: string; // Display name
+  name: string;
   username: string;
   email: string;
+  phone?: string;
+  residence?: string;
+  isByuPathway?: boolean;
   picture?: string;
 }
 
@@ -44,7 +56,6 @@ export interface Reminder {
   notified: boolean;
 }
 
-// Internal database record structure for general users
 export interface UserRecord extends User {
   hashedPassword?: string;
   resetToken?: string;
@@ -57,4 +68,14 @@ export interface AppNotification {
   message: string;
   time: string;
   read: boolean;
+}
+
+export interface UserStats {
+  total: number;
+  today: number;
+  thisWeek: number;
+  thisMonth: number;
+  thisYear: number;
+  byuPathwayCount: number;
+  daily30: { day: string; count: number }[];
 }

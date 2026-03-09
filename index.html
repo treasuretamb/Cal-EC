@@ -2,20 +2,32 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <!-- Responsive viewport — covers notches, Dynamic Island, Android cutouts -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Cal - Event Calendar</title>
-    
-    <!-- Favicons -->
+
+    <!-- Standard favicon -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-    
-    <!-- PWA Meta Tags -->
+
+    <!-- iOS PWA -->
+    <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Cal">
-    <meta name="theme-color" content="#C28840">
+
+    <!-- Android / Chrome PWA -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Cal">
+
+    <!-- Theme colours — light and dark -->
+    <meta name="theme-color" content="#C28840" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#2D3B4D" media="(prefers-color-scheme: dark)">
+
+    <!-- PWA manifest -->
     <link rel="manifest" href="/manifest.json">
 
+    <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -29,70 +41,70 @@
             },
         }
     </script>
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inria+Sans:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&display=swap" rel="stylesheet">
+
     <style>
+        /* ── Base ── */
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        html {
+            /* Fill the full viewport including notch/cutout areas */
+            height: 100%;
+            height: -webkit-fill-available;
+        }
+
         body {
             font-family: 'Inria Sans', sans-serif;
             transition: background-color 0.5s ease, color 0.5s ease;
             -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
             user-select: none;
             overflow-x: hidden;
-            /* Support for iOS safe areas */
-            padding-top: env(safe-area-inset-top);
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-        }
-        /* Desktop scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 10px;
-        }
-        .dark ::-webkit-scrollbar-thumb {
-            background: #475569;
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+
+            /* Respect safe areas on all devices (notch, home bar, punch-hole) */
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            padding-left: env(safe-area-inset-left, 0px);
+            padding-right: env(safe-area-inset-right, 0px);
         }
 
-        /* Utility to hide scrollbar */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+        #root {
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* Remove scrollbars on mobile */
+        /* ── Scrollbars ── */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
         @media (max-width: 768px) {
-            * {
-                scrollbar-width: none; /* Firefox */
-                -ms-overflow-style: none;  /* IE and Edge */
-            }
-            *::-webkit-scrollbar {
-                display: none; /* Chrome, Safari and Opera */
-            }
+            * { scrollbar-width: none; -ms-overflow-style: none; }
+            *::-webkit-scrollbar { display: none; }
         }
 
-        /* Input focus styles for registration */
-        .reg-input:focus {
-            outline: none;
-            border-bottom-color: #517488;
-        }
-        
-        /* App-like active state for buttons */
-        button:active {
-            transform: scale(0.96);
-        }
+        /* ── Buttons ── */
+        button:active { transform: scale(0.96); }
+
+        /* ── Safe-area utility classes ── */
+        .pb-safe { padding-bottom: max(2rem, env(safe-area-inset-bottom, 0px)); }
+        .pt-safe { padding-top: max(0px, env(safe-area-inset-top, 0px)); }
     </style>
+
 <script type="importmap">
 {
   "imports": {
@@ -101,14 +113,13 @@
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "date-fns": "https://esm.sh/date-fns@^4.1.0",
-    "@emailjs/browser": "https://esm.sh/@emailjs/browser@^4.4.1",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.48.1"
   }
 }
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
-<body class="bg-[#F5F1EB] text-slate-900 dark:bg-[#2D3B4D] dark:text-white min-h-screen">
+<body class="bg-[#F5F1EB] text-slate-900 dark:bg-[#2D3B4D] dark:text-white">
     <div id="root"></div>
 <script type="module" src="/index.tsx"></script>
 </body>
