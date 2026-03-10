@@ -5,12 +5,10 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "background_color": "#2D3B4D",
   "theme_color": "#C28840",
   "orientation": "portrait-primary",
   "lang": "en",
-  "categories": ["productivity", "lifestyle"],
   "icons": [
     {
       "src": "/icon-192.png",
@@ -35,14 +33,6 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "form_factor": "narrow"
     }
   ]
 }

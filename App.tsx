@@ -424,19 +424,21 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen transition-all duration-500 flex flex-col bg-[#F5F1EB] dark:bg-[#2D3B4D] text-[#517488] dark:text-white font-sans pt-1.5 pb-1.5 px-8 md:pt-5 md:pb-2.5 md:px-12 overflow-x-hidden">
+    <div className="min-h-screen transition-all duration-500 flex flex-col bg-[#F5F1EB] dark:bg-[#2D3B4D] text-[#517488] dark:text-white font-sans pt-2 pb-safe px-4 sm:px-6 md:pt-4 md:px-12 overflow-x-hidden">
       
       {showNotificationPrompt && (
-        <div className="fixed top-0 left-0 right-0 z-[100] bg-[#C28840] text-white py-3 px-6 flex items-center justify-between shadow-lg animate-in slide-in-from-top">
-          <div className="flex items-center gap-3">
-            <Icon name="BellRing" size={20} />
-            <p className="text-sm font-bold">Enable notifications for event alerts?</p>
-          </div>
-          <div className="flex gap-4">
-            <button onClick={() => setShowNotificationPrompt(false)} className="text-xs font-bold opacity-70">Later</button>
-            <button onClick={requestNotifications} className="bg-white text-[#C28840] px-4 py-1.5 rounded-full text-xs font-bold">Enable</button>
-          </div>
-        </div>
+        <div className="fixed left-4 right-4 z-[100] bg-[#C28840] text-white p-4 rounded-2xl shadow-2xl animate-in slide-in-from-top duration-300" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}>
+//     <div className="flex items-center justify-between gap-3">
+//       <div className="flex items-center gap-3 flex-1 min-w-0">
+//         <Icon name="BellRing" size={18} className="flex-shrink-0" />
+//         <p className="text-xs font-bold leading-tight">Enable notifications for event reminders?</p>
+//       </div>
+//       <div className="flex items-center gap-3 flex-shrink-0">
+//         <button onClick={() => setShowNotificationPrompt(false)} className="text-xs font-bold opacity-70 py-1">Later</button>
+//         <button onClick={requestNotifications} className="bg-white text-[#C28840] px-3 py-1.5 rounded-full text-xs font-bold">Enable</button>
+//       </div>
+//     </div>
+//   </div>
       )}
 
       <header className="flex items-center justify-between mb-2 max-w-2xl mx-auto w-full">
@@ -475,10 +477,10 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <section className="mb-6">
+      <section className="mb-2">
         <div 
           onClick={() => !isLoading && !isDbSetupNeeded && featuredEvent && setSelectedEvent(featuredEvent)}
-          className="bg-[#DCE7EF] dark:bg-[#DCE7EF] rounded-[12px] p-5 shadow-2xl flex items-center gap-8 cursor-pointer transition-transform active:scale-[0.98] border border-white/40 max-w-2xl mx-auto w-full overflow-hidden relative min-h-[140px]"
+          className="bg-[#DCE7EF] dark:bg-[#DCE7EF] rounded-[12px] p-3 md:p-5 shadow-2xl flex items-center gap-3 md:gap-8 cursor-pointer transition-transform active:scale-[0.98] border border-white/40 max-w-2xl mx-auto w-full overflow-hidden relative min-h-[100px] md:min-h-[140px]"
         >
           {isLoading ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-2 opacity-30">
@@ -487,11 +489,11 @@ const App: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="w-28 h-28 md:w-44 md:h-44 flex-shrink-0 rounded-[12px] overflow-hidden shadow-md">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-44 md:h-44 flex-shrink-0 rounded-[10px] overflow-hidden shadow-md">
                 <img src={featuredEvent?.posterUrl || "https://picsum.photos/seed/cal/300/300"} alt="" className="w-full h-full object-cover" />
               </div>
               <div className="flex-1">
-                <p className="text-[#2D3B4D] text-lg md:text-xl font-bold leading-tight">
+                <p className="text-[#2D3B4D] text-sm sm:text-base md:text-xl font-bold leading-tight">
                   {featuredEvent?.description || (isDbSetupNeeded ? "Please complete database setup." : "No upcoming events yet.")}
                 </p>
                 {featuredEvent?.location && (
@@ -508,8 +510,8 @@ const App: React.FC = () => {
         </div>
       </section>
 
-      <section className="mb-6 w-full max-w-2xl mx-auto overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-3 py-2">
+      <section className="mb-2 w-full max-w-2xl mx-auto overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-2 py-1">
           <button onClick={() => setSelectedCategory(null)} className={`px-6 py-2 rounded-full text-sm font-bold transition-all border ${!selectedCategory ? 'bg-[#517488] text-white border-transparent' : 'border-[#517488]/20 dark:border-white/20'}`}>All</button>
           {CATEGORIES.map(cat => (
             <button key={cat} onClick={() => setSelectedCategory(cat === selectedCategory ? null : cat)} style={{ backgroundColor: selectedCategory === cat ? CATEGORY_COLORS[cat] : 'transparent', color: selectedCategory === cat ? 'white' : undefined }} className={`px-6 py-2 rounded-full text-sm font-bold transition-all border ${selectedCategory === cat ? 'border-transparent shadow-lg' : 'border-[#517488]/20 dark:border-white/20'}`}>
@@ -520,7 +522,7 @@ const App: React.FC = () => {
       </section>
 
       <section className="flex-grow flex flex-col items-center">
-        <div className="grid grid-cols-7 w-full max-w-xl mb-4 border-b border-[#517488]/10 pb-4">
+        <div className="grid grid-cols-7 w-full max-w-xl mb-1 border-b border-[#517488]/10 pb-2">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
             <div key={d} className="text-center text-xs font-bold opacity-40 uppercase tracking-widest">{d}</div>
           ))}
@@ -535,9 +537,9 @@ const App: React.FC = () => {
               (user?.role === 'admin' || e.visibility !== 'admin_only')
             );
             return (
-              <div key={idx} className="flex flex-col items-center justify-center relative h-10 w-full">
+              <div key={idx} className="flex flex-col items-center justify-center relative h-9 w-full">
                 {isSameDay(day, today) && <div className="absolute inset-0 m-auto w-8 h-8 bg-[#517488]/10 rounded-lg"></div>}
-                <button onClick={() => { setSelectedDay(day); if (!isCurrentMonth) setCurrentDate(startOfMonth(day)); if (dayEvents.length > 0) setSelectedEvent(dayEvents[0]); }} className={`text-lg font-bold transition-all relative z-10 ${!isCurrentMonth ? 'opacity-20' : isSelected ? 'scale-110' : 'hover:opacity-70'}`}>
+                <button onClick={() => { setSelectedDay(day); if (!isCurrentMonth) setCurrentDate(startOfMonth(day)); if (dayEvents.length > 0) setSelectedEvent(dayEvents[0]); }} className={`text-sm sm:text-base font-bold transition-all relative z-10 ${!isCurrentMonth ? 'opacity-20' : isSelected ? 'scale-110' : 'hover:opacity-70'}`}>
                   {format(day, 'd')}
                   {dayEvents.length > 0 && <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3 h-0.5 rounded-full" style={{ backgroundColor: dayEvents[0].color }} />}
                 </button>
@@ -547,8 +549,8 @@ const App: React.FC = () => {
         </div>
       </section>
 
-      <footer className="mt-auto mb-8 flex flex-col items-center gap-6">
-        <div className="flex items-center justify-center gap-12 w-full max-w-xl">
+      <footer className="mt-2 mb-2 pb-safe flex flex-col items-center gap-3">
+        <div className="flex items-center justify-center gap-8 w-full max-w-xl">
           <button onClick={prevMonth} className="p-2 opacity-50 hover:opacity-100" aria-label="Previous month"><Icon name="ChevronLeft" size={28}/></button>
           <div className="text-center">
             <div className="text-2xl font-black tracking-tight">{format(currentDate, 'MMMM')}</div>

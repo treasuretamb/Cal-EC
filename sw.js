@@ -1,83 +1,92 @@
-
-const CACHE_NAME = 'cal-v1';
-const ASSETS_TO_CACHE = [
-  './',
-  './index.html',
-  'https://cdn.tailwindcss.com',
-  'https://fonts.googleapis.com/css2?family=Inria+Sans:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&display=swap',
-  'https://cdn-icons-png.flaticon.com/512/3652/3652191.png'
+// Cal Service Worker — compatible with Android 5.1+ (Chrome 44+)
+var CACHE_NAME = 'cal-v2';
+var ASSETS_TO_CACHE = [
+  '/',
+  '/index.html'
 ];
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', function(event) {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+    caches.open(CACHE_NAME).then(function(cache) {
+      // Cache one at a time — addAll fails entirely if one asset 404s
+      return Promise.all(
+        ASSETS_TO_CACHE.map(function(url) {
+          return cache.add(url).catch(function() {
+            console.log('SW: failed to cache ' + url);
+          });
+        })
+      );
+    }).then(function() {
+      return self.skipWaiting();
     })
   );
-  self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', function(event) {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
+    caches.keys().then(function(cacheNames) {
       return Promise.all(
-        cacheNames.map((cacheName) => {
+        cacheNames.map(function(cacheName) {
           if (cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
         })
       );
+    }).then(function() {
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
 });
 
-self.addEventListener('fetch', (event) => {
-  // Only cache GET requests
+self.addEventListener('fetch', function(event) {
   if (event.request.method !== 'GET') return;
 
+  // Skip cross-origin requests from Supabase / esm.sh — don't cache API calls
+  var url = event.request.url;
+  if (
+    url.indexOf('supabase.co') !== -1 ||
+    url.indexOf('esm.sh') !== -1 ||
+    url.indexOf('fonts.googleapis.com') !== -1
+  ) {
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request).then((networkResponse) => {
-        // Cache external scripts (Tailwind, esm.sh) and fonts
+    caches.match(event.request).then(function(cachedResponse) {
+      if (cachedResponse) return cachedResponse;
+
+      return fetch(event.request).then(function(networkResponse) {
+        // Only cache same-origin successful responses
         if (
-          event.request.url.includes('cdn.tailwindcss.com') ||
-          event.request.url.includes('esm.sh') ||
-          event.request.url.includes('fonts.gstatic.com')
+          networkResponse &&
+          networkResponse.status === 200 &&
+          networkResponse.type === 'basic'
         ) {
-          const cacheCopy = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, cacheCopy);
+          var responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then(function(cache) {
+            cache.put(event.request, responseToCache);
           });
         }
         return networkResponse;
-      }).catch(() => {
-        // Handle offline fallback for navigation
+      }).catch(function() {
+        // Offline fallback — serve index.html for navigation requests
         if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
+          return caches.match('/index.html');
         }
       });
-
-      return cachedResponse || fetchPromise;
     })
   );
 });
 
-// Handle notification interaction when app is in background or closed
-self.addEventListener('notificationclick', (event) => {
+self.addEventListener('notificationclick', function(event) {
   event.notification.close();
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      if (clientList.length > 0) {
-        let client = clientList[0];
-        for (let i = 0; i < clientList.length; i++) {
-          if (clientList[i].focused) {
-            client = clientList[i];
-          }
-        }
-        return client.focus();
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      for (var i = 0; i < clientList.length; i++) {
+        var client = clientList[i];
+        if ('focus' in client) return client.focus();
       }
-      return clients.openWindow('./');
+      if (clients.openWindow) return clients.openWindow('/');
     })
   );
 });
