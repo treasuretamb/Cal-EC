@@ -109,20 +109,6 @@ const App: React.FC = () => {
 
   const checkIntervalRef = useRef<number | null>(null);
 
-  // Verify session against server on load
-  useEffect(() => {
-    const localUser = authService.getCurrentSession();
-    if (!localUser) return;
-    authService.verifySession(localUser).then(verified => {
-      if (!verified) {
-        setUser(null);
-        setViewState('welcome');
-      } else {
-        setUser(verified);
-      }
-    });
-  }, []);
-
   useEffect(() => {
     if (user) {
       authService.createSession(user);
