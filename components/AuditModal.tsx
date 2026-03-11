@@ -279,7 +279,7 @@ const AuditModal: React.FC<AuditModalProps> = ({ isOpen, onClose, logs, stats, m
           </div>
         )}
 
-        {/* ── Audit Logs Tab ── */}
+        {/* ── Audit Logs Tab ─ */}
         {activeTab === 'logs' && (
           <div className="flex-1 overflow-y-auto p-6 no-scrollbar space-y-4">
             {logs.length > 0 ? (
