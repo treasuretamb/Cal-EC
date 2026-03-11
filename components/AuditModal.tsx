@@ -39,8 +39,6 @@ const AuditModal: React.FC<AuditModalProps> = ({ isOpen, onClose, logs, stats, m
   const [search, setSearch] = useState('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
   const maxDay = stats?.daily30 ? Math.max(...stats.daily30.map(d => d.count), 1) : 1;
 
   const filteredMembers = useMemo(() => {
@@ -66,6 +64,8 @@ const AuditModal: React.FC<AuditModalProps> = ({ isOpen, onClose, logs, stats, m
     { key: 'members', icon: 'Users',         label: `Members${members.length > 0 ? ` (${members.length})` : ''}` },
     { key: 'logs',    icon: 'Activity',      label: 'Logs' },
   ] as const;
+
+  if (!isOpen) return null;
 
   return (
     <div
