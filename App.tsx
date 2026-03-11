@@ -353,27 +353,40 @@ const App: React.FC = () => {
 };
 
   const handleUpdateEvent = async (updatedEvent: Event) => {
-  const { error } = await supabase.rpc('update_event', {
-    p_id: parseInt(updatedEvent.id),
-    p_title: updatedEvent.title,
-    p_description: updatedEvent.description,
-    p_date: updatedEvent.date,
-    p_start_time: updatedEvent.startTime ?? null,
-    p_end_time: updatedEvent.endTime ?? null,
-    p_poster_url: updatedEvent.posterUrl,
-    p_rsvp_link: updatedEvent.rsvpLink ?? null,
-    p_location: updatedEvent.location ?? null,
-    p_category: updatedEvent.category,
-    p_color: updatedEvent.color,
-    visibility: event.visibility || 'public'
-  });
-  if (!error) {
+  try {
+    const { error } = await supabase.rpc('update_event', {
+      p_id: updatedEvent.id,
+      p_title: updatedEvent.title,
+      p_description: updatedEvent.description,
+      p_date: updatedEvent.date,
+      p_start_time: updatedEvent.startTime ?? null,
+      p_end_time: updatedEvent.endTime ?? null,
+      p_poster_url: updatedEvent.posterUrl || `https://picsum.photos/seed/${updatedEvent.id}/600/800`,
+      p_rsvp_link: updatedEvent.rsvpLink ?? null,
+      p_location: updatedEvent.location ?? null,
+      p_category: updatedEvent.category,
+      p_color: updatedEvent.color,
+      p_visibility: updatedEvent.visibility || 'public',
+      p_is_recurring: updatedEvent.isRecurring || false,
+      p_recurrence_pattern: updatedEvent.recurrencePattern ?? null,
+      p_recurrence_interval: updatedEvent.recurrenceInterval ?? 1,
+      p_recurrence_days_of_week: updatedEvent.recurrenceDaysOfWeek ?? null,
+      p_recurrence_end: updatedEvent.recurrenceEnd ?? null,
+      p_recurrence_count: updatedEvent.recurrenceCount ?? null,
+      p_recurrence_group_id: updatedEvent.recurrenceGroupId ?? null,
+    });
+    if (error) throw error;
     await fetchEvents();
-    if (user && user.role === 'admin') authService.logAction(user, 'Event Updated', `Admin updated "${updatedEvent.title}"`);
+    if (user?.role === 'admin') {
+      authService.logAction(user, 'Event Updated', `Admin updated "${updatedEvent.title}"`);
+    }
     setEventToEdit(null);
     setSelectedEvent(null);
+  } catch (err: any) {
+    console.error('Update failed:', err?.message || err);
+    alert(`Update failed: ${err?.message || 'Unknown error'}`);
   }
-  };
+};
 
   const handleDeleteEvent = async (eventId: string) => {
   const eventToDelete = events.find(e => e.id === eventId);
