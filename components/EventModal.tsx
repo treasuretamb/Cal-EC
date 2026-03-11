@@ -9,7 +9,7 @@ interface EventModalProps {
   event: Event | null;
   onClose: () => void;
   isAdmin?: boolean;
-  onDelete?: (eventId: string) => void;
+  onDelete?: (eventId: string, mode: 'single' | 'series') => void;
   onEdit?: (event: Event) => void;
 }
 
@@ -178,27 +178,56 @@ const EventModal: React.FC<EventModalProps> = ({ event, onClose, isAdmin, onDele
 
         {/* Delete confirmation overlay */}
         {showConfirmDelete && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center p-8 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-            <div className="text-center space-y-6">
-              <div className="w-16 h-16 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="text-center space-y-5 w-full">
+              <div className="w-16 h-16 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto">
                 <Icon name="AlertTriangle" size={32} />
               </div>
               <h4 className="text-xl font-black text-white">Delete this event?</h4>
-              <p className="text-sm text-slate-300">This action cannot be undone and will be logged in the audit trail.</p>
-              <div className="flex flex-col gap-3">
-                <button 
-                  onClick={handleDelete}
-                  className="w-full py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors"
-                >
-                  Confirm Delete
-                </button>
-                <button 
-                  onClick={() => setShowConfirmDelete(false)}
-                  className="w-full py-3 bg-white/10 text-white font-bold rounded-xl hover:bg-white/20 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
+
+              {event.isRecurring ? (
+                <>
+                  <p className="text-sm text-slate-300">This is a recurring event. Choose what to delete.</p>
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={() => { onDelete?.(event.id, 'single'); onClose(); }}
+                      className="w-full py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors"
+                    >
+                      This event only
+                    </button>
+                    <button
+                      onClick={() => { onDelete?.(event.id, 'series'); onClose(); }}
+                      className="w-full py-3 bg-red-700 text-white font-bold rounded-xl hover:bg-red-800 transition-colors"
+                    >
+                      All events in series
+                    </button>
+                    <button
+                      onClick={() => setShowConfirmDelete(false)}
+                      className="w-full py-3 bg-white/10 text-white font-bold rounded-xl hover:bg-white/20 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-300">This cannot be undone and will be logged in the audit trail.</p>
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={() => { onDelete?.(event.id, 'single'); onClose(); }}
+                      className="w-full py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors"
+                    >
+                      Confirm Delete
+                    </button>
+                    <button
+                      onClick={() => setShowConfirmDelete(false)}
+                      className="w-full py-3 bg-white/10 text-white font-bold rounded-xl hover:bg-white/20 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

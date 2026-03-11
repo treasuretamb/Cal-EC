@@ -388,16 +388,28 @@ const App: React.FC = () => {
   }
 };
 
-  const handleDeleteEvent = async (eventId: string) => {
+  const handleDeleteEvent = async (eventId: string, mode: 'single' | 'series' = 'single') => {
   const eventToDelete = events.find(e => e.id === eventId);
-  const { error } = await supabase.rpc('delete_event', { p_id: parseInt(eventId) });
-  if (!error) {
+  try {
+    if (mode === 'series' && eventToDelete?.recurrenceGroupId) {
+      const { error } = await supabase.rpc('delete_event_series', {
+        p_group_id: eventToDelete.recurrenceGroupId
+      });
+      if (error) throw error;
+      if (user?.role === 'admin') authService.logAction(user, 'Series Deleted', `Admin deleted all instances of "${eventToDelete.title}"`);
+    } else {
+      const { error } = await supabase.from('events').delete().eq('id', eventId);
+      if (error) throw error;
+      if (user?.role === 'admin' && eventToDelete) authService.logAction(user, 'Event Deleted', `Admin deleted "${eventToDelete.title}"`);
+      notificationService.removeReminder(eventId, user?.id);
+    }
     await fetchEvents();
-    if (user && user.role === 'admin' && eventToDelete) authService.logAction(user, 'Event Deleted', `Admin deleted "${eventToDelete.title}"`);
-    notificationService.removeReminder(eventId, user?.id);
     setSelectedEvent(null);
+  } catch (err: any) {
+    console.error('Delete failed:', err?.message || err);
+    alert(`Delete failed: ${err?.message || 'Unknown error'}`);
   }
-  };
+};
 
   const toggleTheme = () => setDarkMode(!darkMode);
 
@@ -619,7 +631,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <EventModal event={selectedEvent} onClose={() => setSelectedEvent(null)} isAdmin={user?.role === 'admin'} onDelete={handleDeleteEvent} onEdit={(e) => { setEventToEdit(e); setShowAdminForm(true); }} />
+      <EventModal event={selectedEvent} onClose={() => setSelectedEvent(null)} isAdmin={user?.role === 'admin'} onDelete={(id, mode) => handleDeleteEvent(id, mode)} onEdit={(e) => { setEventToEdit(e); setShowAdminForm(true); }} />
       <AuditModal
       isOpen={showAuditDashboard}
       onClose={() => setShowAuditDashboard(false)}
