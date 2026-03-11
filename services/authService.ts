@@ -261,13 +261,8 @@ getCurrentSession(): User | null {
   return null;
 },
 
-getSavedUserProfile(): User | null {
-  const savedGuest = localStorage.getItem(SAVED_GUEST_KEY);
-  if (savedGuest) { try { return JSON.parse(savedGuest) as User; } catch {} }
-  return null;
-},
-
 logout() {
-  localStorage.removeItem(SESSION_KEY);
-  // Note: we keep SAVED_GUEST_KEY so regular users don't have to re-register
-},
+    localStorage.removeItem(SESSION_KEY);
+    // Note: we keep SAVED_GUEST_KEY so regular users don't have to re-register
+  },
+};
