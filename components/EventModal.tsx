@@ -1,339 +1,309 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Event } from '../types';
+import React, { useState, useMemo } from 'react';
+import { AuditLog, UserStats } from '../types';
 import { format } from 'date-fns';
 import Icon from './Icon';
-import { notificationService } from '../services/notificationService';
-import { authService } from '../services/authService';
 
-interface EventModalProps {
-  event: Event | null;
-  events?: Event[];          // all events on the selected day — enables swipe
-  initialIndex?: number;
-  onClose: () => void;
-  isAdmin?: boolean;
-  onDelete?: (eventId: string, mode: 'single' | 'series') => void;
-  onEdit?: (event: Event) => void;
+export interface MemberRecord {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  residence?: string;
+  isByuPathway?: boolean;
+  createdAt?: string;
+  lastSeen?: string;
 }
 
-const EventModal: React.FC<EventModalProps> = ({
-  event,
-  events: eventsProp,
-  initialIndex = 0,
-  onClose,
-  isAdmin,
-  onDelete,
-  onEdit,
-}) => {
-  // Build navigation list: prefer the full-day list, fall back to single event
-  const list: Event[] = eventsProp && eventsProp.length > 0
-    ? eventsProp
-    : event ? [event] : [];
+interface AuditModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  logs: AuditLog[];
+  stats: UserStats | null;
+  members: MemberRecord[];
+}
 
-  const [index, setIndex] = useState(initialIndex);
-  const [isScheduled, setIsScheduled] = useState(false);
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-  const [animating, setAnimating] = useState(false);
-  const [slideDir, setSlideDir] = useState<'left' | 'right' | null>(null);
+const StatCard: React.FC<{ label: string; value: number | string; icon: string; color?: string }> = ({ label, value, icon, color = '#C28840' }) => (
+  <div className="bg-white dark:bg-white/5 rounded-2xl p-4 border border-black/5 dark:border-white/5 flex items-center gap-3">
+    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${color}20` }}>
+      <Icon name={icon as any} size={20} style={{ color }} />
+    </div>
+    <div>
+      <p className="text-[10px] font-black uppercase tracking-widest opacity-40">{label}</p>
+      <p className="text-xl font-black" style={{ color }}>{value}</p>
+    </div>
+  </div>
+);
 
-  const touchStartX = useRef<number | null>(null);
-  const touchStartY = useRef<number | null>(null);
+const AuditModal: React.FC<AuditModalProps> = ({ isOpen, onClose, logs, stats, members }) => {
+  const [activeTab, setActiveTab] = useState<'stats' | 'members' | 'logs'>('stats');
+  const [search, setSearch] = useState('');
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  const currentUser = authService.getCurrentSession();
-  const current = list[index] ?? null;
+  const maxDay = stats?.daily30 ? Math.max(...stats.daily30.map(d => d.count), 1) : 1;
 
-  useEffect(() => {
-    setIndex(initialIndex);
-  }, [event, initialIndex]);
+  const filteredMembers = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return members;
+    return members.filter(m =>
+      m.name?.toLowerCase().includes(q) ||
+      m.email?.toLowerCase().includes(q) ||
+      m.residence?.toLowerCase().includes(q) ||
+      m.phone?.includes(q)
+    );
+  }, [members, search]);
 
-  useEffect(() => {
-    if (current) {
-      const reminders = notificationService.getReminders();
-      setIsScheduled(!!reminders[current.id]);
-      setShowConfirmDelete(false);
-    }
-  }, [current]);
-
-  const goTo = useCallback((next: number, dir: 'left' | 'right') => {
-    if (animating) return;
-    setSlideDir(dir);
-    setAnimating(true);
-    setTimeout(() => {
-      setIndex(next);
-      setSlideDir(null);
-      setAnimating(false);
-    }, 180);
-  }, [animating]);
-
-  const goPrev = useCallback(() => {
-    if (index > 0) goTo(index - 1, 'right');
-  }, [index, goTo]);
-
-  const goNext = useCallback(() => {
-    if (index < list.length - 1) goTo(index + 1, 'left');
-  }, [index, list.length, goTo]);
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
+  const copyToClipboard = (text: string, key: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(key);
+      setTimeout(() => setCopiedField(null), 1500);
+    });
   };
 
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null || touchStartY.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    const dy = e.changedTouches[0].clientY - touchStartY.current;
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 44) {
-      if (dx < 0) goNext();
-      else goPrev();
-    }
-    touchStartX.current = null;
-    touchStartY.current = null;
-  };
+  const tabs = [
+    { key: 'stats',   icon: 'BarChart2',    label: 'Stats' },
+    { key: 'members', icon: 'Users',         label: `Members${members.length > 0 ? ` (${members.length})` : ''}` },
+    { key: 'logs',    icon: 'Activity',      label: 'Logs' },
+  ] as const;
 
-  if (!current) return null;
-
-  const handleNotifyMe = async () => {
-    if (isScheduled) {
-      await notificationService.removeReminder(current.id, currentUser?.id);
-      setIsScheduled(false);
-      return;
-    }
-    const granted = await notificationService.requestPermission();
-    if (granted) {
-      await notificationService.addReminder(current.id, current.date, currentUser?.id);
-      setIsScheduled(true);
-      notificationService.sendNotification(`Reminder Set: ${current.title}`, {
-        body: `We'll alert you before this event on ${format(new Date(current.date), 'MMMM do')}.`,
-        tag: `ack-${current.id}`,
-      });
-    } else {
-      alert('Please enable notifications in your browser settings to receive event alerts.');
-    }
-  };
-
-  const formatTime = (time?: string) => {
-    if (!time) return '';
-    const [hours, minutes] = time.split(':');
-    const h = parseInt(hours);
-    return `${h % 12 || 12}:${minutes} ${h >= 12 ? 'PM' : 'AM'}`;
-  };
-
-  const contentClass = [
-    'transition-all duration-[180ms]',
-    slideDir === 'left'  ? 'opacity-0 -translate-x-3' :
-    slideDir === 'right' ? 'opacity-0 translate-x-3'  : 'opacity-100 translate-x-0',
-  ].join(' ');
-
-  const hasMultiple = list.length > 1;
+  if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-[6px]"
+      className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-[6px]"
       onClick={onClose}
     >
-      {/* Desktop prev arrow */}
-      {hasMultiple && index > 0 && (
-        <button
-          onClick={e => { e.stopPropagation(); goPrev(); }}
-          className="hidden md:flex absolute z-[60] w-11 h-11 rounded-full bg-white/90 dark:bg-slate-800/90 shadow-xl items-center justify-center text-[#517488] dark:text-[#C28840] hover:scale-110 active:scale-95 transition-all"
-          style={{ left: 'max(1rem, calc(50% - 224px - 3.5rem))' }}
-        >
-          <Icon name="ChevronLeft" size={22} />
-        </button>
-      )}
-
-      {/* Desktop next arrow */}
-      {hasMultiple && index < list.length - 1 && (
-        <button
-          onClick={e => { e.stopPropagation(); goNext(); }}
-          className="hidden md:flex absolute z-[60] w-11 h-11 rounded-full bg-white/90 dark:bg-slate-800/90 shadow-xl items-center justify-center text-[#517488] dark:text-[#C28840] hover:scale-110 active:scale-95 transition-all"
-          style={{ right: 'max(1rem, calc(50% - 224px - 3.5rem))' }}
-        >
-          <Icon name="ChevronRight" size={22} />
-        </button>
-      )}
-
       <div
-        className="relative w-full max-w-md bg-white dark:bg-[#1E293B] rounded-[12px] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300 flex flex-col max-h-[88vh]"
+        className="relative w-full max-w-lg bg-[#F5F1EB] dark:bg-[#1E293B] rounded-[24px] overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300 flex flex-col max-h-[88vh]"
         onClick={e => e.stopPropagation()}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
       >
-        {/* Dot indicators + mobile arrows */}
-        {hasMultiple && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-full px-3 py-1.5">
-            <button onClick={goPrev} disabled={index === 0}
-              className="md:hidden text-white disabled:opacity-25 active:scale-90 transition-all">
-              <Icon name="ChevronLeft" size={14} />
-            </button>
-            {list.map((_, i) => (
-              <button key={i} onClick={() => goTo(i, i > index ? 'left' : 'right')}
-                className={`rounded-full transition-all duration-200 ${
-                  i === index ? 'w-4 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/50 hover:bg-white/80'
-                }`}
-              />
-            ))}
-            <button onClick={goNext} disabled={index === list.length - 1}
-              className="md:hidden text-white disabled:opacity-25 active:scale-90 transition-all">
-              <Icon name="ChevronRight" size={14} />
-            </button>
-          </div>
-        )}
-
-        <div className={`overflow-y-auto flex-1 no-scrollbar ${contentClass}`}>
-
-          {/* ── Poster — portrait, never cropped ── */}
-          <div className="w-full bg-slate-100 dark:bg-slate-900 flex items-center justify-center overflow-hidden relative">
-            <img
-              src={current.posterUrl}
-              alt={current.title}
-              className="w-full h-auto object-contain block"
-              style={{ maxHeight: '56vh' }}
-            />
-
-            {current.isRecurring && (
-              <div className="absolute top-3 right-3 flex items-center gap-1.5 px-2.5 py-1 bg-black/50 backdrop-blur-sm rounded-full">
-                <Icon name="Repeat" size={11} className="text-white" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-white">
-                  {current.recurrencePattern}
-                </span>
-              </div>
-            )}
-
-            {isAdmin && current.visibility === 'admin_only' && (
-              <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/80 backdrop-blur-sm rounded-full">
-                <Icon name="Lock" size={11} className="text-white" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-white">Staff Only</span>
-              </div>
-            )}
-          </div>
-
-          {/* ── Event details ── */}
-          <div className="bg-[#E8F1F8] dark:bg-slate-800 p-6 pb-14 relative">
-            <div className="flex justify-between items-start mb-4 gap-3">
-              <h3 className="text-[#1E293B] dark:text-white text-xl font-black flex-1 leading-tight">
-                {current.title}
-              </h3>
-              <button
-                onClick={handleNotifyMe}
-                className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full transition-all text-xs font-bold uppercase tracking-wider ${
-                  isScheduled
-                    ? 'bg-green-500 text-white shadow-lg shadow-green-500/20'
-                    : 'bg-[#C28840]/10 text-[#C28840] hover:bg-[#C28840]/20'
-                }`}
-              >
-                <Icon name={isScheduled ? 'Check' : 'Bell'} size={14} />
-                {isScheduled ? 'Scheduled' : 'Remind Me'}
-              </button>
+        {/* Header */}
+        <div className="p-6 border-b border-black/5 dark:border-white/5 bg-white dark:bg-white/5">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h3 className="text-2xl font-black text-[#2D3B4D] dark:text-white tracking-tight">Admin Dashboard</h3>
+              <p className="text-xs font-bold text-[#C28840] uppercase tracking-widest mt-1">System Overview</p>
             </div>
-
-            <div className="space-y-5">
-              <p className="text-[#1E293B] dark:text-slate-200 font-bold text-base leading-relaxed">
-                {current.description}
-              </p>
-
-              <div className="pt-4 space-y-3 border-t border-[#517488]/10 dark:border-white/10">
-                <div className="flex items-center gap-3 text-sm text-[#1E293B]/70 dark:text-slate-400 font-bold">
-                  <Icon name="Calendar" size={16} />
-                  {format(new Date(current.date), 'EEEE, MMMM do, yyyy')}
-                </div>
-                {(current.startTime || current.endTime) && (
-                  <div className="flex items-center gap-3 text-sm text-[#1E293B]/70 dark:text-slate-400 font-bold">
-                    <Icon name="Clock" size={16} />
-                    {current.startTime ? formatTime(current.startTime) : '...'}
-                    {current.endTime ? ` — ${formatTime(current.endTime)}` : ''}
-                  </div>
-                )}
-                {current.location && (
-                  <div className="flex items-center gap-3 text-sm text-[#1E293B]/70 dark:text-slate-400 font-bold">
-                    <Icon name="MapPin" size={16} />
-                    {current.location}
-                  </div>
-                )}
-              </div>
-
-              {current.rsvpLink && (
-                <a
-                  href={current.rsvpLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-white/60 dark:bg-white/10 rounded-full text-[#517488] dark:text-[#C28840] font-black hover:bg-white transition-all shadow-sm border border-white/20"
-                >
-                  RSVP Link <Icon name="ExternalLink" size={14} />
-                </a>
-              )}
-            </div>
-
-            <button
-              onClick={onClose}
-              className="absolute bottom-5 right-5 p-1.5 z-20 text-[#517488] dark:text-[#C28840] transition-opacity hover:opacity-70 active:scale-90"
-              aria-label="Close"
-            >
+            <button onClick={onClose} className="p-2 text-[#517488] dark:text-[#C28840] hover:opacity-70 transition-opacity">
               <Icon name="X" size={26} />
             </button>
           </div>
+
+          {/* Tabs */}
+          <div className="flex gap-2">
+            {tabs.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  activeTab === tab.key
+                    ? 'bg-[#C28840] text-white shadow-md'
+                    : 'bg-black/5 dark:bg-white/5 text-[#517488] dark:text-slate-400 hover:bg-black/10'
+                }`}
+              >
+                <span className="flex items-center justify-center gap-1.5">
+                  <Icon name={tab.icon as any} size={13} />
+                  {tab.label}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Pinned admin bar */}
-        {isAdmin && (
-          <div className="flex gap-3 p-4 border-t border-slate-100 dark:border-slate-700 bg-white dark:bg-[#1E293B] flex-shrink-0">
-            <button
-              onClick={() => onEdit?.(current)}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#517488]/10 text-[#517488] dark:text-[#C28840] font-bold text-sm hover:bg-[#517488]/20 transition-all active:scale-95"
-            >
-              <Icon name="Pencil" size={16} /> Edit Event
-            </button>
-            <button
-              onClick={() => setShowConfirmDelete(true)}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500/10 text-red-500 font-bold text-sm hover:bg-red-500/20 transition-all active:scale-95"
-            >
-              <Icon name="Trash2" size={16} /> Delete
-            </button>
+        {/* ── Stats Tab ── */}
+        {activeTab === 'stats' && (
+          <div className="flex-1 overflow-y-auto p-5 no-scrollbar space-y-4">
+            {stats ? (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <StatCard label="Total Members" value={stats.total} icon="Users" color="#517488" />
+                  <StatCard label="Today" value={stats.today} icon="UserPlus" color="#C28840" />
+                  <StatCard label="This Month" value={stats.thisMonth} icon="Calendar" color="#22C55E" />
+                  <StatCard label="This Year" value={stats.thisYear} icon="TrendingUp" color="#EC4899" />
+                </div>
+
+                <div className="bg-white dark:bg-white/5 rounded-2xl p-4 border border-black/5 dark:border-white/5">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-black uppercase tracking-widest opacity-40">BYU Pathway Students</p>
+                    <span className="text-lg font-black text-[#C28840]">{stats.byuPathwayCount}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 dark:bg-white/10 rounded-full h-2">
+                    <div
+                      className="h-2 rounded-full bg-[#C28840] transition-all duration-700"
+                      style={{ width: stats.total > 0 ? `${(stats.byuPathwayCount / stats.total) * 100}%` : '0%' }}
+                    />
+                  </div>
+                  <p className="text-[10px] font-bold opacity-40 mt-2 uppercase tracking-widest">
+                    {stats.total > 0 ? Math.round((stats.byuPathwayCount / stats.total) * 100) : 0}% of all members
+                  </p>
+                </div>
+
+                {stats.daily30 && stats.daily30.length > 0 && (
+                  <div className="bg-white dark:bg-white/5 rounded-2xl p-4 border border-black/5 dark:border-white/5">
+                    <p className="text-xs font-black uppercase tracking-widest opacity-40 mb-3">New Members — Last 30 Days</p>
+                    <div className="flex items-end gap-1 h-16">
+                      {stats.daily30.map((d, i) => (
+                        <div key={i} className="flex-1 group relative">
+                          <div
+                            className="w-full rounded-sm bg-[#C28840]/60 group-hover:bg-[#C28840] transition-all"
+                            style={{ height: `${(d.count / maxDay) * 100}%`, minHeight: '2px' }}
+                          />
+                          <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-[#2D3B4D] text-white text-[9px] font-bold px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                            {d.day}: {d.count}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <p className="text-[9px] opacity-30 font-bold uppercase">{stats.daily30[0]?.day}</p>
+                      <p className="text-[9px] opacity-30 font-bold uppercase">{stats.daily30[stats.daily30.length - 1]?.day}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-white dark:bg-white/5 rounded-2xl p-4 border border-black/5 dark:border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-[#517488]/10 flex items-center justify-center">
+                      <Icon name="CalendarDays" size={16} className="text-[#517488]" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest opacity-40">This Week</p>
+                      <p className="text-sm font-bold text-[#2D3B4D] dark:text-white">New registrations</p>
+                    </div>
+                  </div>
+                  <span className="text-2xl font-black text-[#517488]">{stats.thisWeek}</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-20 text-center opacity-30">
+                <Icon name="BarChart2" size={48} className="mb-4" />
+                <p className="text-sm font-bold uppercase tracking-widest">No stats available</p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Delete confirmation overlay */}
-        {showConfirmDelete && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-            <div className="text-center space-y-5 w-full">
-              <div className="w-16 h-16 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto">
-                <Icon name="AlertTriangle" size={32} />
+        {/* ── Members Tab ── */}
+        {activeTab === 'members' && (
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Search bar */}
+            <div className="p-4 border-b border-black/5 dark:border-white/5">
+              <div className="relative">
+                <Icon name="Search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40" />
+                <input
+                  type="text"
+                  placeholder="Search name, email, location..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 text-sm font-medium outline-none focus:ring-2 focus:ring-[#C28840] placeholder:opacity-40"
+                />
+                {search && (
+                  <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-70">
+                    <Icon name="X" size={14} />
+                  </button>
+                )}
               </div>
-              <h4 className="text-xl font-black text-white">Delete this event?</h4>
+              <p className="text-[10px] font-bold opacity-30 uppercase tracking-widest mt-2">
+                {filteredMembers.length} of {members.length} members · tap any field to copy
+              </p>
+            </div>
 
-              {current.isRecurring ? (
-                <>
-                  <p className="text-sm text-slate-300">This is a recurring event. Choose what to delete.</p>
-                  <div className="flex flex-col gap-3">
-                    <button onClick={() => { onDelete?.(current.id, 'single'); onClose(); }}
-                      className="w-full py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors">
-                      This event only
-                    </button>
-                    <button onClick={() => { onDelete?.(current.id, 'series'); onClose(); }}
-                      className="w-full py-3 bg-red-700 text-white font-bold rounded-xl hover:bg-red-800 transition-colors">
-                      All events in series
-                    </button>
-                    <button onClick={() => setShowConfirmDelete(false)}
-                      className="w-full py-3 bg-white/10 text-white font-bold rounded-xl hover:bg-white/20 transition-colors">
-                      Cancel
-                    </button>
+            {/* List */}
+            <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-3">
+              {filteredMembers.length > 0 ? (
+                filteredMembers.map((m, i) => (
+                  <div key={m.id} className="bg-white dark:bg-white/5 rounded-2xl border border-black/5 dark:border-white/5 overflow-hidden">
+                    {/* Name row */}
+                    <div className="flex items-center gap-3 p-4 pb-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#517488] flex items-center justify-center text-white font-black text-sm flex-shrink-0">
+                        {m.name?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-black text-[#2D3B4D] dark:text-white truncate">{m.name}</p>
+                        {m.createdAt && (
+                          <p className="text-[10px] opacity-40 font-bold uppercase tracking-widest">
+                            Joined {format(new Date(m.createdAt), 'MMM d, yyyy')}
+                          </p>
+                        )}
+                      </div>
+                      {m.isByuPathway && (
+                        <span className="flex-shrink-0 px-2 py-0.5 bg-[#C28840]/15 rounded-lg text-[9px] font-black text-[#C28840] uppercase tracking-widest">
+                          BYU
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Detail rows */}
+                    <div className="border-t border-black/5 dark:border-white/5 divide-y divide-black/5 dark:divide-white/5">
+                      {m.email && (
+                        <button
+                          onClick={() => copyToClipboard(m.email!, `email-${m.id}`)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-black/3 dark:hover:bg-white/5 transition-colors text-left"
+                        >
+                          <Icon name="Mail" size={13} className="text-[#517488] flex-shrink-0" />
+                          <span className="text-xs font-medium text-[#517488] dark:text-slate-300 truncate flex-1">{m.email}</span>
+                          <Icon name={copiedField === `email-${m.id}` ? 'Check' : 'Copy'} size={12} className="opacity-30 flex-shrink-0" />
+                        </button>
+                      )}
+                      {m.phone && (
+                        <button
+                          onClick={() => copyToClipboard(m.phone!, `phone-${m.id}`)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-black/3 dark:hover:bg-white/5 transition-colors text-left"
+                        >
+                          <Icon name="Phone" size={13} className="text-[#517488] flex-shrink-0" />
+                          <span className="text-xs font-medium text-[#517488] dark:text-slate-300 flex-1">{m.phone}</span>
+                          <Icon name={copiedField === `phone-${m.id}` ? 'Check' : 'Copy'} size={12} className="opacity-30 flex-shrink-0" />
+                        </button>
+                      )}
+                      {m.residence && (
+                        <button
+                          onClick={() => copyToClipboard(m.residence!, `loc-${m.id}`)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-black/3 dark:hover:bg-white/5 transition-colors text-left"
+                        >
+                          <Icon name="MapPin" size={13} className="text-[#517488] flex-shrink-0" />
+                          <span className="text-xs font-medium text-[#517488] dark:text-slate-300 flex-1">{m.residence}</span>
+                          <Icon name={copiedField === `loc-${m.id}` ? 'Check' : 'Copy'} size={12} className="opacity-30 flex-shrink-0" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </>
+                ))
               ) : (
-                <>
-                  <p className="text-sm text-slate-300">This cannot be undone and will be logged in the audit trail.</p>
-                  <div className="flex flex-col gap-3">
-                    <button onClick={() => { onDelete?.(current.id, 'single'); onClose(); }}
-                      className="w-full py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors">
-                      Confirm Delete
-                    </button>
-                    <button onClick={() => setShowConfirmDelete(false)}
-                      className="w-full py-3 bg-white/10 text-white font-bold rounded-xl hover:bg-white/20 transition-colors">
-                      Cancel
-                    </button>
-                  </div>
-                </>
+                <div className="flex flex-col items-center justify-center py-16 text-center opacity-30">
+                  <Icon name="UserX" size={40} className="mb-3" />
+                  <p className="text-sm font-bold uppercase tracking-widest">
+                    {search ? 'No members match your search' : 'No members yet'}
+                  </p>
+                </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* ── Audit Logs Tab ── */}
+        {activeTab === 'logs' && (
+          <div className="flex-1 overflow-y-auto p-6 no-scrollbar space-y-4">
+            {logs.length > 0 ? (
+              <div className="space-y-4">
+                {logs.map(log => (
+                  <div key={log.id} className="group relative pl-8 pb-5 border-l-2 border-[#C28840]/20 last:pb-0">
+                    <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-[#C28840] border-4 border-[#F5F1EB] dark:border-[#1E293B] group-hover:scale-125 transition-transform" />
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="text-xs font-black text-[#517488] dark:text-[#C28840] uppercase tracking-widest">{log.adminName}</span>
+                      <span className="text-[10px] font-bold opacity-40 uppercase">{format(new Date(log.timestamp), 'MMM d, HH:mm')}</span>
+                    </div>
+                    <div className="p-4 bg-white dark:bg-white/5 rounded-2xl border border-black/5 dark:border-white/5 shadow-sm group-hover:shadow-md transition-shadow">
+                      <h4 className="text-sm font-black text-[#2D3B4D] dark:text-white uppercase tracking-tight mb-1">{log.action}</h4>
+                      <p className="text-xs text-[#517488] dark:text-slate-400 font-medium leading-relaxed">{log.details}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-20 text-center opacity-30">
+                <Icon name="ClipboardList" size={48} className="mb-4" />
+                <p className="text-sm font-bold uppercase tracking-widest">No activity recorded yet</p>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -341,4 +311,4 @@ const EventModal: React.FC<EventModalProps> = ({
   );
 };
 
-export default EventModal;
+export default AuditModal;
