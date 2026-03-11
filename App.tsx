@@ -96,6 +96,7 @@ const App: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [userStats, setUserStats] = useState<UserStats | null>(null); 
   const [globalUserCount, setGlobalUserCount] = useState<number>(0);
+  const [members, setMembers] = useState<import('./components/AuditModal').MemberRecord[]>([]);
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -435,6 +436,8 @@ const App: React.FC = () => {
   setAuditLogs(logs);
   const stats = await authService.getUserStats();
   setUserStats(stats);
+  const memberList = await authService.getMembers();
+  setMembers(memberList as any);
   setShowAuditDashboard(true);
 };
 
@@ -637,6 +640,7 @@ const App: React.FC = () => {
       onClose={() => setShowAuditDashboard(false)}
       logs={auditLogs}
       stats={userStats}
+      members={members}
       />
       {showAdminForm && <AdminForm onAdd={handleAddEvent} onUpdate={handleUpdateEvent} onClose={() => { setShowAdminForm(false); setSelectedDateForAdmin(undefined); setEventToEdit(null); }} initialDate={selectedDateForAdmin} eventToEdit={eventToEdit} />}
     </div>

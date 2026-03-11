@@ -83,12 +83,12 @@ export const authService = {
     await supabase.from('users').upsert({
       id: user.id,
       name: user.name,
-      email: user.email,
+      email: user.email || null,
       phone: user.phone || null,
       residence: user.residence || null,
       is_byu_pathway: user.isByuPathway || false,
       device_id: deviceId,
-      last_seen: new Date().toISOString()
+      last_seen: new Date().toISOString(),
     }, { onConflict: 'id' });
   } catch {}
 },
@@ -117,6 +117,28 @@ export const authService = {
       return count || 0;
     } catch { return 0; }
   },
+
+  async getMembers(): Promise<import('../types').User[]> {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name, email, phone, residence, is_byu_pathway, created_at, last_seen')
+      .order('created_at', { ascending: false });
+    if (error || !data) return [];
+    return data.map(u => ({
+      id: u.id,
+      role: 'user' as const,
+      name: u.name || 'Unknown',
+      username: '',
+      email: u.email || '',
+      phone: u.phone || '',
+      residence: u.residence || '',
+      isByuPathway: u.is_byu_pathway || false,
+      createdAt: u.created_at,
+      lastSeen: u.last_seen,
+    }));
+  } catch { return []; }
+},
 
   async registerPersonalAdmin(name: string, lastName: string, password: string): Promise<AdminRecord> {
   const hashedPassword = await hashPassword(password);
