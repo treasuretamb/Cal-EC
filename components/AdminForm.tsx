@@ -79,7 +79,7 @@ function generateInstances(
           (endDate ? candidate <= endDate : true) &&
           (opts.endMode === 'count' ? instances.length < opts.endCount : true)
         ) {
-          instances.push(makeInstance(candidate.toISOString().split('T')[0]));
+          instances.push(makeInstance(format(candidate, 'yyyy-MM-dd')));
         }
       }
       current = addWeeks(current, opts.interval);
@@ -87,7 +87,7 @@ function generateInstances(
       continue;
     }
 
-    instances.push(makeInstance(current.toISOString().split('T')[0]));
+    instances.push(makeInstance(format(current, 'yyyy-MM-dd')));
     count++;
 
     switch (opts.pattern) {
@@ -108,8 +108,8 @@ const AdminForm: React.FC<AdminFormProps> = ({
     title: '', description: '', location: '',
     category: 'Intellectual' as Event['category'],
     date: initialDate
-      ? initialDate.toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0],
+      ? format(initialDate, 'yyyy-MM-dd')
+      : format(new Date(), 'yyyy-MM-dd'),
     startTime: '09:00', endTime: '10:00',
     posterUrl: '', rsvpLink: '',
     color: CATEGORY_COLORS['Intellectual'],
@@ -123,7 +123,7 @@ const AdminForm: React.FC<AdminFormProps> = ({
   const [endMode, setEndMode] = useState<'date' | 'count'>('date');
   const [endDate, setEndDate] = useState(() => {
     const d = new Date(); d.setMonth(d.getMonth() + 3);
-    return d.toISOString().split('T')[0];
+    return format(d, 'yyyy-MM-dd');
   });
   const [endCount, setEndCount] = useState(10);
   const [customDates, setCustomDates] = useState<string[]>(['']);
@@ -134,7 +134,7 @@ const AdminForm: React.FC<AdminFormProps> = ({
         title: eventToEdit.title, description: eventToEdit.description,
         location: eventToEdit.location || '',
         category: eventToEdit.category,
-        date: new Date(eventToEdit.date).toISOString().split('T')[0],
+        date: format(new Date(eventToEdit.date), 'yyyy-MM-dd'),
         startTime: eventToEdit.startTime || '09:00',
         endTime: eventToEdit.endTime || '10:00',
         posterUrl: eventToEdit.posterUrl,
