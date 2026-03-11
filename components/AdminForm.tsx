@@ -528,7 +528,6 @@ const AdminForm: React.FC<AdminFormProps> = ({
                 </div>
               )}
             </div>
-          </div>
 
           {eventToEdit?.isRecurring && isRecurring && (
             <div className="flex items-center gap-3 p-4 bg-[#C28840]/10 rounded-2xl border border-[#C28840]/20">
