@@ -187,8 +187,13 @@ const AdminForm: React.FC<AdminFormProps> = ({
       onUpdate?.({
         ...formData, id: eventToEdit.id, visibility,
         date: new Date(formData.date + 'T12:00:00').toISOString(),
-        isRecurring: eventToEdit.isRecurring,
-        recurrencePattern: eventToEdit.recurrencePattern,
+        isRecurring: isRecurring || undefined,
+        recurrencePattern: isRecurring ? pattern : undefined,
+        recurrenceInterval: isRecurring ? interval : undefined,
+        recurrenceDaysOfWeek: isRecurring && pattern === 'weekly' ? daysOfWeek : undefined,
+        recurrenceEnd: isRecurring && endMode === 'date' ? new Date(endDate + 'T12:00:00').toISOString() : undefined,
+        recurrenceCount: isRecurring && endMode === 'count' ? endCount : undefined,
+        recurrenceCustomDates: isRecurring && pattern === 'custom' ? customDates.filter(Boolean) : undefined,
         recurrenceGroupId: eventToEdit.recurrenceGroupId,
       });
       onClose();
@@ -364,8 +369,7 @@ const AdminForm: React.FC<AdminFormProps> = ({
           </div>
 
           {/* ── Recurring Toggle ── */}
-          {!eventToEdit && (
-            <div className="space-y-4">
+          <div className="space-y-4">
               <button type="button" onClick={() => setIsRecurring(!isRecurring)}
                 className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${
                   isRecurring ? 'border-[#C28840] bg-[#C28840]/10' : 'border-slate-200 dark:border-slate-700'
@@ -524,12 +528,12 @@ const AdminForm: React.FC<AdminFormProps> = ({
                 </div>
               )}
             </div>
-          )}
+          </div>
 
-          {eventToEdit?.isRecurring && (
+          {eventToEdit?.isRecurring && isRecurring && (
             <div className="flex items-center gap-3 p-4 bg-[#C28840]/10 rounded-2xl border border-[#C28840]/20">
               <Icon name="Repeat" size={18} className="text-[#C28840] flex-shrink-0" />
-              <p className="text-xs font-bold text-[#C28840]">This is part of a recurring series. You are editing this occurrence only.</p>
+              <p className="text-xs font-bold text-[#C28840]">Editing this occurrence only. Changes won't affect other events in the series.</p>
             </div>
           )}
 
