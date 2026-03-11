@@ -564,7 +564,7 @@ const App: React.FC = () => {
             return (
               <div key={idx} className="flex flex-col items-center justify-center relative h-8 w-full">
                 {isSameDay(day, today) && <div className="absolute inset-0 m-auto w-8 h-8 bg-[#517488]/10 rounded-lg"></div>}
-                <button onClick={() => { setSelectedDay(day); if (!isCurrentMonth) setCurrentDate(startOfMonth(day)); if (dayEvents.length > 0) setSelectedEvent(dayEvents[0]); }} className={`text-sm font-bold transition-all relative z-10 ${!isCurrentMonth ? 'opacity-20' : isSelected ? 'scale-110' : 'hover:opacity-70'}`}>
+                <button onClick={() => { setSelectedDay(day); if (!isCurrentMonth) setCurrentDate(startOfMonth(day)); if (dayEvents.length > 0) { setSelectedEvent(dayEvents[0]); } else if (user?.role === 'admin') { setSelectedDateForAdmin(day); setShowAdminForm(true); } }} className={`text-sm font-bold transition-all relative z-10 ${!isCurrentMonth ? 'opacity-20' : isSelected ? 'scale-110' : 'hover:opacity-70'}`}>
                   {format(day, 'd')}
                   {dayEvents.length > 0 && <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-3 h-0.5 rounded-full" style={{ backgroundColor: dayEvents[0].color }} />}
                 </button>
