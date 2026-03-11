@@ -184,48 +184,68 @@ export const authService = {
   },
 
   createSession(user: User): void {
-    const sessionToken = btoa(`${user.id}:${user.role}:${Date.now()}`);
-    localStorage.setItem(SESSION_KEY, sessionToken);
-    localStorage.setItem('cal-active-user', JSON.stringify(user));
-    if (user.role === 'user') localStorage.setItem(SAVED_GUEST_KEY, JSON.stringify(user));
-    this.syncUser(user);
-  },
-
-  getCurrentSession(): User | null {
-  const token = localStorage.getItem(SESSION_KEY);
-  const userJson = localStorage.getItem('cal-active-user');
-  if (token && userJson) {
-    try {
-      const user = JSON.parse(userJson) as User;
-      const [id, role] = atob(token).split(':');
-      if (user.id === id && user.role === role) return user;
-    } catch {}
-  }
-  const savedGuest = localStorage.getItem(SAVED_GUEST_KEY);
-  if (savedGuest) {
-    try { return JSON.parse(savedGuest) as User; } catch {}
-  }
-  return null;
-  },
-
-  async verifySession(user: User): Promise<User | null> {
-  try {
-    if (user.role === 'admin') {
-      const { data, error } = await supabase.rpc('verify_admin_session', { p_id: user.id });
-      if (error || !data || data.length === 0) {
-        console.warn('Session verification failed: admin not found.');
-        this.logout();
-        return null;
-      }
-      const d = data[0];
-      return { id: d.id, role: 'admin', name: d.name, username: d.username, email: d.email };
-    }
-    return user;
-  } catch { return user; }
+  const sessionToken = btoa(`${user.id}:${user.role}:${Date.now()}`);
+  const sessionData = {
+    token: sessionToken,
+    user: user,
+    lastActive: Date.now(),
+  };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
+  if (user.role === 'user') localStorage.setItem(SAVED_GUEST_KEY, JSON.stringify(user));
+  this.syncUser(user);
 },
 
-  logout() {
-    localStorage.removeItem(SESSION_KEY);
-    localStorage.removeItem('cal-active-user');
+getCurrentSession(): User | null {
+  // Try the main session first
+  const raw = localStorage.getItem(SESSION_KEY);
+  if (raw) {
+    try {
+      // Handle both old format (plain string) and new format (JSON object)
+      const parsed = JSON.parse(raw);
+      if (parsed.user && parsed.lastActive) {
+        const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+        const inactive = Date.now() - parsed.lastActive;
+        if (inactive < THIRTY_DAYS) {
+          // Refresh the last active time on each visit
+          parsed.lastActive = Date.now();
+          localStorage.setItem(SESSION_KEY, JSON.stringify(parsed));
+          return parsed.user as User;
+        }
+        // Session expired — clear it
+        localStorage.removeItem(SESSION_KEY);
+      }
+    } catch {
+      // Old plain string format — migrate it
+      try {
+        const userJson = localStorage.getItem('cal-active-user');
+        if (userJson) {
+          const user = JSON.parse(userJson) as User;
+          this.createSession(user);
+          localStorage.removeItem('cal-active-user');
+          return user;
+        }
+      } catch {}
+    }
   }
-};
+  // Fallback: saved guest profile (regular users)
+  const savedGuest = localStorage.getItem(SAVED_GUEST_KEY);
+  if (savedGuest) {
+    try {
+      const user = JSON.parse(savedGuest) as User;
+      this.createSession(user); // upgrade to new format
+      return user;
+    } catch {}
+  }
+  return null;
+},
+
+getSavedUserProfile(): User | null {
+  const savedGuest = localStorage.getItem(SAVED_GUEST_KEY);
+  if (savedGuest) { try { return JSON.parse(savedGuest) as User; } catch {} }
+  return null;
+},
+
+logout() {
+  localStorage.removeItem(SESSION_KEY);
+  // Note: we keep SAVED_GUEST_KEY so regular users don't have to re-register
+},
